@@ -11,6 +11,10 @@
 <body>
     <div class="container mt-4">
         <h1 class="text-center">Real-Time Chat Application</h1>
+        <div class="input-group mb-3">
+            <h1 class="text-center">Chat Room:</h1>
+            <input id="roomInput" type="text" class="form-control" placeholder="Room ID (e.g., room1)" />
+        </div>
         <div id= "chat"
         class = "border rounded p-3 mb-3"
         style= "height: 300px; overflow-y: auto;">
@@ -19,6 +23,7 @@
         <div class="input-group mb-3">
             <input id="senderInput" type="text" class="form-control" placeholder="your name"/>
         </div>
+        
         <div class="input-group mb-3">
             <input id="messageInput" type="text" class="form-control" placeholder="type a message..."/>
             <div id="input-group-append">
@@ -31,19 +36,44 @@
 </body>
 
 <script>
+    let stompClient = null;
+    let roomId = 'default';
+    let subscription  = null;
+
     function setConnected(connected) {
         document.getElementById('sendMessage').disabled = !connected;
     }
+    
     function connect() {
-        var socket= new SockJS('/chat');
+        var socket = new SockJS('/chat');
         stompClient = Stomp.over(socket);
         stompClient.connect({}, function (frame) {
             setConnected(true);
-            stompClient.subscribe('/topic/messages', function (message) {
-                showMessage(JSON.parse(message.body));
-            });
+            switchRoom();
+        })
+    }
+    function switchRoom() {
+        const newRoomId = document.getElementById('roomInput').value || 'default';
+        if (subscription) {
+            subscription.unsubscribe();
+        }
+        roomId = newRoomId;
+        subscription = stompClient.subscribe(`/topic/messages/${roomId}`, function (message) {
+            showMessage(JSON.parse(message.body));
         });
     }
+    // function connect() {
+    //     console.log('Room ID:', document.getElementById('roomInput').value);
+    //     roomId = document.getElementById('roomInput').value || 'default';
+    //     var socket= new SockJS('/chat');
+    //     stompClient = Stomp.over(socket);
+    //     stompClient.connect({}, function (frame) {
+    //         setConnected(true);
+    //         stompClient.subscribe(`/topic/messages/${roomId}`, function (message) {
+    //             showMessage(JSON.parse(message.body));
+    //         });
+    //     });
+    // }
 
         function showMessage(message) {
             var chat = document.getElementById('chat');
@@ -63,10 +93,15 @@
                     sender: sender,
                     content: content
                 };
-                stompClient.send('/app/sendMessage', {}, JSON.stringify(message));
+                stompClient.send(`/app/sendMessage/${roomId}`, {}, JSON.stringify(message));
                 document.getElementById('messageInput').value = '';
             }
         }
+        document.getElementById('roomInput').addEventListener('change', function() {
+            if (stompClient && stompClient.connected) {
+                switchRoom();
+            }
+        });
         document.getElementById('sendMessage').onclick = sendMessage;
         window.onload = connect;
 </script>
